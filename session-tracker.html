@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Ledger — Session Time Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #10121a;
+    --panel: #171a26;
+    --panel-raised: #1d2130;
+    --line: #272b3c;
+    --text: #eef0f5;
+    --muted: #8890a3;
+    --work: #e0a458;
+    --work-dim: #4a3d29;
+    --waste: #5b6478;
+    --waste-dim: #2b2f3d;
+    --end: #c96a5a;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', system-ui, sans-serif;
+    min-height:100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  body{
+    display:flex;
+    justify-content:center;
+    padding: 32px 16px 60px;
+  }
+  .app{
+    width:100%;
+    max-width: 440px;
+  }
+  .eyebrow{
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight:600;
+    margin-bottom: 6px;
+  }
+  h1{
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin-bottom: 28px;
+  }
+  h1 span{ color: var(--work); }
+
+  .card{
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 28px 24px;
+    margin-bottom: 18px;
+  }
+
+  /* Idle state */
+  .idle-card{
+    text-align:center;
+    padding: 48px 24px;
+  }
+  .idle-card p{
+    color: var(--muted);
+    font-size: 14px;
+    line-height:1.5;
+    margin-bottom: 28px;
+  }
+
+  button{
+    font-family: 'Inter', sans-serif;
+    border: none;
+    cursor: pointer;
+    border-radius: 12px;
+    font-weight: 600;
+    transition: transform 0.08s ease, opacity 0.15s ease, background 0.15s ease;
+  }
+  button:active{ transform: scale(0.97); }
+
+  .btn-primary{
+    background: var(--work);
+    color: #1a1206;
+    font-size: 15px;
+    padding: 15px 28px;
+    width:100%;
+  }
+  .btn-primary:hover{ opacity:0.92; }
+
+  .btn-ghost{
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--text);
+    font-size: 14px;
+    padding: 13px 20px;
+    width:100%;
+  }
+  .btn-ghost:hover{ background: var(--panel-raised); }
+
+  .btn-end{
+    background: transparent;
+    border: 1px solid var(--end);
+    color: var(--end);
+    font-size: 13px;
+    padding: 11px 18px;
+    width:100%;
+    margin-top: 10px;
+  }
+  .btn-end:hover{ background: rgba(201,106,90,0.08); }
+
+  /* Session header */
+  .session-label{
+    display:flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 4px;
+  }
+  .session-label .eyebrow{ margin-bottom:0; }
+  .live-dot{
+    width:7px; height:7px; border-radius:50%;
+    background: var(--work);
+    display:inline-block;
+    margin-right: 6px;
+    box-shadow: 0 0 0 0 rgba(224,164,88,0.5);
+    animation: pulse 1.8s infinite;
+  }
+  .live-dot.paused{ background: var(--waste); animation:none; }
+  @keyframes pulse{
+    0%{ box-shadow: 0 0 0 0 rgba(224,164,88,0.4); }
+    70%{ box-shadow: 0 0 0 6px rgba(224,164,88,0); }
+    100%{ box-shadow: 0 0 0 0 rgba(224,164,88,0); }
+  }
+
+  .session-time{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 40px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
+    margin: 4px 0 20px;
+  }
+
+  /* Gauge */
+  .gauge-wrap{
+    display:flex;
+    justify-content:center;
+    margin: 6px 0 22px;
+  }
+  .gauge-center{
+    font-family:'JetBrains Mono', monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  .gauge-center .pct{
+    font-size: 26px;
+    font-weight:700;
+    color: var(--work);
+  }
+  .gauge-center .pct-label{
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-top:2px;
+  }
+
+  .stats-row{
+    display:flex;
+    gap: 12px;
+    margin-bottom: 22px;
+  }
+  .stat{
+    flex:1;
+    background: var(--panel-raised);
+    border-radius: 12px;
+    padding: 14px 14px;
+    border: 1px solid var(--line);
+  }
+  .stat.work{ border-color: var(--work-dim); }
+  .stat.waste{ border-color: var(--waste-dim); }
+  .stat-label{
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin-bottom: 6px;
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .swatch{ width:8px; height:8px; border-radius:2px; }
+  .swatch.work{ background: var(--work); }
+  .swatch.waste{ background: var(--waste); }
+  .stat-value{
+    font-family:'JetBrains Mono', monospace;
+    font-size: 19px;
+    font-weight:600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .toggle-btn{
+    font-size: 15px;
+    padding: 16px;
+    width:100%;
+  }
+  .toggle-btn.working{
+    background: var(--waste-dim);
+    color: var(--text);
+    border: 1px solid var(--waste);
+  }
+  .toggle-btn.wasted{
+    background: var(--work);
+    color: #1a1206;
+  }
+
+  /* Summary */
+  .summary-title{
+    font-size: 17px;
+    font-weight:700;
+    margin-bottom: 4px;
+  }
+  .summary-sub{
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 22px;
+  }
+  .summary-total{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    padding-bottom:18px;
+    margin-bottom:18px;
+    border-bottom: 1px solid var(--line);
+  }
+  .summary-total .label{ font-size:13px; color:var(--muted); }
+  .summary-total .value{
+    font-family:'JetBrains Mono', monospace;
+    font-size: 24px;
+    font-weight:700;
+  }
+
+  .bar{
+    height: 10px;
+    border-radius: 6px;
+    overflow:hidden;
+    display:flex;
+    margin-bottom: 22px;
+  }
+  .bar div{ height:100%; }
+
+  .log-empty{
+    color: var(--muted);
+    font-size: 13px;
+    text-align:center;
+    padding: 20px 0;
+  }
+  .log-item{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 13px;
+  }
+  .log-item:last-child{ border-bottom:none; }
+  .log-item .log-when{ color: var(--muted); }
+  .log-item .log-nums{
+    font-family:'JetBrains Mono', monospace;
+    display:flex;
+    gap:10px;
+    font-variant-numeric: tabular-nums;
+  }
+  .log-item .log-nums .w{ color: var(--work); }
+  .log-item .log-nums .x{ color: var(--waste); }
+
+  .section-title{
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    font-weight:600;
+    margin-bottom: 12px;
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="eyebrow">Time Ledger</div>
+  <h1>Track the work. <span>Own the waste.</span></h1>
+
+  <div id="root"></div>
+
+  <div id="log-card" class="card" style="display:none;">
+    <div class="section-title">Past sessions</div>
+    <div id="log-list"></div>
+  </div>
+</div>
+
+<script>
+const root = document.getElementById('root');
+const logList = document.getElementById('log-list');
+const logCard = document.getElementById('log-card');
+
+let state = 'idle'; // idle | active | ended
+let sessionStart = null;
+let sessionEnd = null;
+let isWorking = false;
+let workAccumMs = 0;   // completed working segments
+let lastToggle = null; // timestamp of last work/waste toggle
+let lastSummary = null;
+let history = [];
+
+let tickHandle = null;
+
+function fmt(ms){
+  if (ms < 0) ms = 0;
+  const totalSec = Math.floor(ms/1000);
+  const h = Math.floor(totalSec/3600);
+  const m = Math.floor((totalSec%3600)/60);
+  const s = totalSec%60;
+  const pad = n => String(n).padStart(2,'0');
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+}
+
+function fmtClock(ts){
+  const d = new Date(ts);
+  return d.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+}
+
+function currentWorkMs(now){
+  return workAccumMs + (isWorking ? (now - lastToggle) : 0);
+}
+
+function startSession(){
+  state = 'active';
+  sessionStart = Date.now();
+  isWorking = true;
+  lastToggle = sessionStart;
+  workAccumMs = 0;
+  render();
+  startTicking();
+}
+
+function toggleWork(){
+  const now = Date.now();
+  if (isWorking){
+    workAccumMs += (now - lastToggle);
+  }
+  isWorking = !isWorking;
+  lastToggle = now;
+  render();
+}
+
+function endSession(){
+  const now = Date.now();
+  if (isWorking){
+    workAccumMs += (now - lastToggle);
+  }
+  isWorking = false;
+  sessionEnd = now;
+  state = 'ended';
+  stopTicking();
+
+  const total = sessionEnd - sessionStart;
+  const work = workAccumMs;
+  const waste = Math.max(total - work, 0);
+  lastSummary = { start: sessionStart, end: sessionEnd, total, work, waste };
+  history.unshift(lastSummary);
+  render();
+  renderLog();
+}
+
+function resetToIdle(){
+  state = 'idle';
+  sessionStart = null;
+  sessionEnd = null;
+  isWorking = false;
+  workAccumMs = 0;
+  lastToggle = null;
+  render();
+}
+
+function startTicking(){
+  stopTicking();
+  tickHandle = setInterval(render, 250);
+}
+function stopTicking(){
+  if (tickHandle){ clearInterval(tickHandle); tickHandle = null; }
+}
+
+function gaugeSVG(workFrac){
+  const r = 78, c = 2*Math.PI*r;
+  const workLen = Math.max(workFrac,0) * c;
+  return `
+  <svg width="200" height="200" viewBox="0 0 200 200">
+    <circle cx="100" cy="100" r="${r}" fill="none" stroke="var(--waste-dim)" stroke-width="14"/>
+    <circle cx="100" cy="100" r="${r}" fill="none" stroke="var(--work)" stroke-width="14"
+      stroke-dasharray="${workLen} ${c-workLen}" stroke-linecap="round"
+      transform="rotate(-90 100 100)"/>
+  </svg>`;
+}
+
+function render(){
+  const now = Date.now();
+
+  if (state === 'idle'){
+    root.innerHTML = `
+      <div class="card idle-card">
+        <p>Start a session to begin the clock. Toggle work and waste as you go — we'll tally both when you end it.</p>
+        <button class="btn-primary" onclick="startSession()">Start session</button>
+      </div>
+    `;
+    return;
+  }
+
+  if (state === 'active'){
+    const elapsed = now - sessionStart;
+    const work = currentWorkMs(now);
+    const waste = Math.max(elapsed - work, 0);
+    const workFrac = elapsed > 0 ? work/elapsed : 0;
+
+    root.innerHTML = `
+      <div class="card">
+        <div class="session-label">
+          <span class="eyebrow"><span class="live-dot ${isWorking?'':'paused'}"></span>${isWorking ? 'Working' : 'Marked as waste'}</span>
+          <span class="eyebrow">Started ${fmtClock(sessionStart)}</span>
+        </div>
+        <div class="session-time">${fmt(elapsed)}</div>
+
+        <div class="gauge-wrap" style="position:relative;">
+          ${gaugeSVG(workFrac)}
+          <div class="gauge-center" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center;">
+            <div class="pct">${Math.round(workFrac*100)}%</div>
+            <div class="pct-label">working</div>
+          </div>
+        </div>
+
+        <div class="stats-row">
+          <div class="stat work">
+            <div class="stat-label"><span class="swatch work"></span>Working</div>
+            <div class="stat-value">${fmt(work)}</div>
+          </div>
+          <div class="stat waste">
+            <div class="stat-label"><span class="swatch waste"></span>Wasted</div>
+            <div class="stat-value">${fmt(waste)}</div>
+          </div>
+        </div>
+
+        <button class="toggle-btn ${isWorking ? 'working' : 'wasted'}" onclick="toggleWork()">
+          ${isWorking ? 'Mark as wasted time' : 'Resume working'}
+        </button>
+        <button class="btn-end" onclick="endSession()">End session</button>
+      </div>
+    `;
+    return;
+  }
+
+  if (state === 'ended'){
+    const s = lastSummary;
+    const workPct = s.total > 0 ? Math.round((s.work/s.total)*100) : 0;
+    const wastePct = 100 - workPct;
+
+    root.innerHTML = `
+      <div class="card">
+        <div class="summary-title">Session complete</div>
+        <div class="summary-sub">${fmtClock(s.start)} – ${fmtClock(s.end)}</div>
+
+        <div class="summary-total">
+          <span class="label">Total session time</span>
+          <span class="value">${fmt(s.total)}</span>
+        </div>
+
+        <div class="bar">
+          <div style="width:${workPct}%; background:var(--work);"></div>
+          <div style="width:${wastePct}%; background:var(--waste);"></div>
+        </div>
+
+        <div class="stats-row">
+          <div class="stat work">
+            <div class="stat-label"><span class="swatch work"></span>Working — ${workPct}%</div>
+            <div class="stat-value">${fmt(s.work)}</div>
+          </div>
+          <div class="stat waste">
+            <div class="stat-label"><span class="swatch waste"></span>Wasted — ${wastePct}%</div>
+            <div class="stat-value">${fmt(s.waste)}</div>
+          </div>
+        </div>
+
+        <button class="btn-primary" onclick="resetToIdle()">Start new session</button>
+      </div>
+    `;
+    return;
+  }
+}
+
+function renderLog(){
+  if (history.length === 0){
+    logCard.style.display = 'none';
+    return;
+  }
+  logCard.style.display = 'block';
+  logList.innerHTML = history.map(s => `
+    <div class="log-item">
+      <div>
+        <div>${fmtClock(s.start)} – ${fmtClock(s.end)}</div>
+        <div class="log-when">${fmt(s.total)} total</div>
+      </div>
+      <div class="log-nums">
+        <span class="w">${fmt(s.work)}</span>
+        <span class="x">${fmt(s.waste)}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+render();
+</script>
+
+</body>
+</html>
